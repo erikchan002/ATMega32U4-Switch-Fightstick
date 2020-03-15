@@ -132,18 +132,36 @@ Button buttons[NUMBER_OF_BUTTONS]{
 };
 Dpad dpad;
 
+#define NUMBER_OF_SLIDER_ELEMENTS 31
+uint32_t slider = 0;
+
 void readAllEnabled(){
   for (int i=0;i<NUMBER_OF_BUTTONS;++i) buttons[i].read();
   dpad.read();
 }
 
+void readSlider() {
+  while(Serial1.read()!=0xFF);
+  uint32_t positions = 0;
+
+  byte incoming[NUMBER_OF_SLIDER_ELEMENTS/7+1] = {0};
+  Serial1.readBytes(incoming, NUMBER_OF_SLIDER_ELEMENTS/7+1);
+  
+  for(int i=0; i <= NUMBER_OF_SLIDER_ELEMENTS/7; ++i){
+    positions |= ((uint32_t)incoming[i] << ((NUMBER_OF_SLIDER_ELEMENTS/7-i)*7));
+  }
+
+  slider = positions;
+}
+
 void writeReport(){
   for (int i=0;i<NUMBER_OF_BUTTONS;++i) buttons[i].write(ReportData);
   dpad.write(ReportData);
-  ReportData.LX = 128;
-  ReportData.LY = 128;
-  ReportData.RX = 128;
-  ReportData.RY = 128;
+
+  ReportData.LX = (slider & 0xFF) ^ 0x80;
+  ReportData.LY = ((slider>>8) & 0xFF) ^ 0x80;
+  ReportData.RX = ((slider>>15) & 0xFF) ^ 0x80;
+  ReportData.RY = ((slider>>23) & 0xFF) ^ 0x80;
 }
 
 void setup() {
@@ -152,12 +170,15 @@ void setup() {
   buttons[Y].attach(6);
   buttons[X].attach(7);
 
+  Serial1.begin(115200);
+
   SetupHardware();
   GlobalInterruptEnable();
 }
 
 void loop() {
   readAllEnabled();
+  readSlider();
   writeReport();
 
   HID_Task();
