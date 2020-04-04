@@ -3,6 +3,9 @@
 #include "Joystick.h"
 #define BOUNCE_WITH_PROMPT_DETECTION
 #include <Bounce2.h>
+#include <Wire.h>
+#include <FastLED.h>
+#include <EEPROM.h>
 
 #define DEBOUNCE_INTERVAL 1 //ms
 
@@ -13,7 +16,7 @@ class Button {
     Bounce bounce;
     bool attached;
   public:
-    byte status;
+    bool status;
     Button(uint16_t mask=0):mask(mask),bounce(Bounce()),attached(false){
       this->bounce.interval(Button::debounceInterval);
     }
@@ -52,7 +55,7 @@ class Dpad {
     Bounce bounce[4];
     bool attached;
   public:
-    byte status[4];
+    bool status[4];
     Dpad():bounce{Bounce(),Bounce(),Bounce(),Bounce()},attached(false){
     }
     void attach(uint8_t pinUp, uint8_t pinDown, uint8_t pinLeft, uint8_t pinRight){
@@ -66,7 +69,7 @@ class Dpad {
       this->attached = false;
     }
     void read(){
-      for (int i=0;i<4;++i){
+      for (uint8_t i=0;i<4;++i){
         if (this->attached && this->bounce[i].update()) this->status[i] = this->bounce[i].fell();
       }
     }
@@ -132,53 +135,351 @@ Button buttons[NUMBER_OF_BUTTONS]{
 };
 Dpad dpad;
 
-#define NUMBER_OF_SLIDER_ELEMENTS 31
-uint32_t slider = 0;
-
-void readAllEnabled(){
-  for (int i=0;i<NUMBER_OF_BUTTONS;++i) buttons[i].read();
-  dpad.read();
+#define SLIDER_I2C_ADDRESS 0x08
+#define NUMBER_OF_SLIDER_SENSORS 30
+#define BUFFER_SIZE (NUMBER_OF_SLIDER_SENSORS+7)/8
+bool sliderTouches[NUMBER_OF_SLIDER_SENSORS] = {false};
+void setupSlider(){
+  Wire.setClock(400000L);
+  Wire.begin();
 }
-
 void readSlider() {
-  while(Serial1.read()!=0xFF);
-  uint32_t positions = 0;
-
-  byte incoming[NUMBER_OF_SLIDER_ELEMENTS/7+1] = {0};
-  Serial1.readBytes(incoming, NUMBER_OF_SLIDER_ELEMENTS/7+1);
-  
-  for(int i=0; i <= NUMBER_OF_SLIDER_ELEMENTS/7; ++i){
-    positions |= ((uint32_t)incoming[i] << ((NUMBER_OF_SLIDER_ELEMENTS/7-i)*7));
+  Wire.requestFrom(SLIDER_I2C_ADDRESS, BUFFER_SIZE);
+  uint8_t numberOfSensorsRead = 0;
+  for(uint8_t i=0;i<BUFFER_SIZE;++i){
+    if(!Wire.available()) break;
+    uint8_t incoming = Wire.read();
+    for(uint8_t j=0;j<8;++j){
+        if(numberOfSensorsRead>=NUMBER_OF_SLIDER_SENSORS) break;
+        sliderTouches[numberOfSensorsRead] = (incoming >> j) & 1;
+        ++numberOfSensorsRead;
+    }
   }
-
-  slider = positions;
+}
+void writeSliderToReport(){
+  uint8_t sticks[4] = {0};
+  for(uint8_t i=0; i<NUMBER_OF_SLIDER_SENSORS;++i){
+    if(sliderTouches[i]) sticks[i/8] |= (1 << (i%8));
+  }
+  ReportData.LX = sticks[0] ^ 0x80;
+  ReportData.LY = sticks[1] ^ 0x80;
+  ReportData.RX = sticks[2] ^ 0x80;
+  ReportData.RY = sticks[3] ^ 0x80;
 }
 
-void writeReport(){
-  for (int i=0;i<NUMBER_OF_BUTTONS;++i) buttons[i].write(ReportData);
-  dpad.write(ReportData);
-
-  ReportData.LX = (slider & 0xFF) ^ 0x80;
-  ReportData.LY = ((slider>>8) & 0xFF) ^ 0x80;
-  ReportData.RX = ((slider>>15) & 0xFF) ^ 0x80;
-  ReportData.RY = ((slider>>23) & 0xFF) ^ 0x80;
-}
+#define LEDS_PER_SENSOR 1
+#define LEDS_PER_BUTTON 1
+CRGB leds[NUMBER_OF_SLIDER_SENSORS*LEDS_PER_SENSOR+4*LEDS_PER_BUTTON];
+enum class ButtonLedMode { arcade, nintendo, sony, rainbow, swirl, custom } buttonLedMode;
+enum class SliderLedMode { arcade, rainbow, swirl, custom } sliderLedMode;
+uint8_t autoHue = 0;
+uint16_t breatheAngle = 0;
+CRGB customColors[5];
+const uint8_t ledMaxBrightness = 32;
+const uint8_t buttonLedBrightnessRatio = 255;
+const uint8_t sliderLedTouchBrightnessRatio = 255;
+const uint8_t sliderLedRippleBrightnessRatio = 8;
+const uint8_t sliderLedBackgroundBrightnessRatio = 64;
+const uint8_t sliderLedBackgroundFadeInSpeed = 1;
+const uint8_t sliderLedBackgroundFadeOutSpeed = 4;
+uint8_t currentSliderLedBackgroundBrightnessRatio = sliderLedBackgroundBrightnessRatio;
+uint8_t rippleLeft[NUMBER_OF_SLIDER_SENSORS] = {NUMBER_OF_SLIDER_SENSORS};
+uint8_t rippleRight[NUMBER_OF_SLIDER_SENSORS] = {NUMBER_OF_SLIDER_SENSORS};
+int8_t rippleLeftChange[NUMBER_OF_SLIDER_SENSORS] = {0};
+int8_t rippleRightChange[NUMBER_OF_SLIDER_SENSORS] = {0};
 
 void setup() {
-  buttons[A].attach(4);
-  buttons[B].attach(5);
-  buttons[Y].attach(6);
-  buttons[X].attach(7);
-
-  Serial1.begin(115200);
+  setupLeds();
+  setupButtons();
+  setupDpad();
+  setupSlider();
 
   SetupHardware();
   GlobalInterruptEnable();
 }
 
-void loop() {
-  readAllEnabled();
+void readAll(){
+  for (uint8_t i=0;i<NUMBER_OF_BUTTONS;++i) buttons[i].read();
+  dpad.read();
   readSlider();
+}
+
+void handleButtonLeds() {
+  uint8_t i;
+  switch(buttonLedMode){
+    case ButtonLedMode::nintendo:
+      for(i = 0;i<LEDS_PER_BUTTON;++i){
+        leds[i] = CRGB::Red;
+      }
+      for(;i<LEDS_PER_BUTTON;++i){
+        leds[i] = CRGB::Yellow;
+      }
+      for(;i<LEDS_PER_BUTTON;++i){
+        leds[i] = CRGB::Green;
+      }
+      for(;i<LEDS_PER_BUTTON;++i){
+        leds[i] = CRGB::Blue;
+      }
+      break;
+    case ButtonLedMode::sony:
+      for(i = 0;i<LEDS_PER_BUTTON;++i){
+        leds[i] = CRGB::Red;
+      }
+      for(;i<LEDS_PER_BUTTON;++i){
+        leds[i] = CRGB::Blue;
+      }
+      for(;i<LEDS_PER_BUTTON;++i){
+        leds[i] = CRGB::Purple;
+      }
+      for(;i<LEDS_PER_BUTTON;++i){
+        leds[i] = CRGB::Green;
+      }
+      break;
+    case ButtonLedMode::rainbow:
+      fill_rainbow(leds,4*LEDS_PER_BUTTON,autoHue,0);
+      break;
+    case ButtonLedMode::swirl:
+      fill_rainbow(leds,4*LEDS_PER_BUTTON,autoHue,256/5);
+      break;
+    case ButtonLedMode::custom:
+      for(i = 0; i < 4; ++i){
+        for(uint8_t j = 0;j<LEDS_PER_BUTTON;++j){
+          leds[i*LEDS_PER_BUTTON+j] = customColors[i];
+        }
+      }
+      break;
+    case ButtonLedMode::arcade:
+    default:
+      fill_solid(leds,4*LEDS_PER_BUTTON,CRGB::White);
+      break;
+  }
+  for(i = 0; i < 4*LEDS_PER_BUTTON; ++i){
+    leds[i].maximizeBrightness(buttonLedBrightnessRatio);
+  }
+  if(buttons[A].status){
+    for(i = 0;i<LEDS_PER_BUTTON;++i){
+      leds[0*LEDS_PER_BUTTON+i] = CRGB::Black;
+    }
+  }
+  if(buttons[B].status){
+    for(i = 0;i<LEDS_PER_BUTTON;++i){
+      leds[1*LEDS_PER_BUTTON+i] = CRGB::Black;
+    }
+  }
+  if(buttons[Y].status){
+    for(i = 0;i<LEDS_PER_BUTTON;++i){
+      leds[2*LEDS_PER_BUTTON+i] = CRGB::Black;
+    }
+  }
+  if(buttons[X].status){
+    for(i = 0;i<LEDS_PER_BUTTON;++i){
+      leds[3*LEDS_PER_BUTTON+i] = CRGB::Black;
+    }
+  }
+}
+
+void handleSliderLeds(){
+  switch(sliderLedMode){
+    case SliderLedMode::rainbow:
+      fill_rainbow(leds+4*LEDS_PER_BUTTON,NUMBER_OF_SLIDER_SENSORS*LEDS_PER_SENSOR,autoHue,0);
+      break;
+    case SliderLedMode::swirl:
+      fill_rainbow(leds+4*LEDS_PER_BUTTON,NUMBER_OF_SLIDER_SENSORS*LEDS_PER_SENSOR,autoHue,256/(NUMBER_OF_SLIDER_SENSORS*LEDS_PER_SENSOR+1));
+      break;
+    case SliderLedMode::custom:
+      fill_solid(leds+4*LEDS_PER_BUTTON,NUMBER_OF_SLIDER_SENSORS*LEDS_PER_SENSOR,customColors[4]);
+      break;
+    case SliderLedMode::arcade:
+    default:
+      fill_solid(leds+4*LEDS_PER_BUTTON,NUMBER_OF_SLIDER_SENSORS*LEDS_PER_SENSOR,CRGB::White);
+      break;
+  }
+  bool isTouching = false;
+  for(uint8_t i = 0; i < NUMBER_OF_SLIDER_SENSORS; ++i){    
+    if(sliderTouches[i]) {
+      switch(sliderLedMode){
+        case SliderLedMode::rainbow:
+        case SliderLedMode::swirl:
+        case SliderLedMode::custom:
+          break;
+        case SliderLedMode::arcade:
+        default:
+          for(uint8_t j = 0; j < LEDS_PER_SENSOR; ++j){
+            leds[i*LEDS_PER_SENSOR+j+4*LEDS_PER_BUTTON] = CRGB::MediumTurquoise;
+          }
+          break;
+      }
+      for(uint8_t j = 0; j < LEDS_PER_SENSOR; ++j){
+        leds[i*LEDS_PER_SENSOR+j+4*LEDS_PER_BUTTON].maximizeBrightness(sliderLedTouchBrightnessRatio);
+      }
+      // EVERY_N_MILLISECONDS(50){
+      //   if(rippleRightChange[i]==0){
+      //     rippleRight[i] = i;
+      //     rippleRightChange[i] = -1;
+      //   } else {
+      //     if(rippleRight[i]>=i){
+      //       rippleRight[i] = i-1;
+      //       rippleRightChange[i] = -1;
+      //     } else if(rippleRight[i]<=0){
+      //       rippleRight[i] = 1;
+      //       rippleRightChange[i] = +1;
+      //     } else {
+      //       rippleRight[i]+=rippleRightChange[i];
+      //     }
+      //   }
+      //   if(rippleLeftChange[i]==0){
+      //     rippleLeft[i] = i;
+      //     rippleLeftChange[i] = +1;
+      //   } else {
+      //     if(rippleLeft[i]<=i){
+      //       rippleLeft[i] = i+1;
+      //       rippleLeftChange[i] = +1;
+      //     } else if(rippleLeft[i]>=NUMBER_OF_SLIDER_SENSORS){
+      //       rippleLeft[i] = NUMBER_OF_SLIDER_SENSORS - 1;
+      //       rippleLeftChange[i] = -1;
+      //     } else {
+      //       rippleLeft[i]+=rippleLeftChange[i];
+      //     }
+      //   }
+      // }
+      isTouching = true;
+    }
+    else {
+      // rippleLeftChange[i] = 0;
+      // rippleRightChange[i] = 0;
+      // bool inRippleRange = false;
+      // for(uint8_t j = 0; j < NUMBER_OF_SLIDER_SENSORS; ++j){
+      //   if(i>=rippleRight[j] && i<=rippleLeft[j] && sliderTouches[j]){
+      //     inRippleRange = true;
+      //     break;
+      //   }
+      // }
+      // if(inRippleRange){
+      //   for(uint8_t j = 0; j < LEDS_PER_SENSOR; ++j){
+      //     leds[i*LEDS_PER_SENSOR+j+4*LEDS_PER_BUTTON] = CRGB::MediumTurquoise;
+      //     leds[i*LEDS_PER_SENSOR+j+4*LEDS_PER_BUTTON].maximizeBrightness(sliderLedRippleBrightnessRatio);
+      //   }
+      // } 
+      // else {
+        for(uint8_t j = 0; j < LEDS_PER_SENSOR; ++j){
+          leds[i*LEDS_PER_SENSOR+j+4*LEDS_PER_BUTTON].maximizeBrightness(currentSliderLedBackgroundBrightnessRatio/4*3+currentSliderLedBackgroundBrightnessRatio*sin(radians(breatheAngle))/4);
+        }
+      // }
+    }
+  }
+  if(isTouching){
+    EVERY_N_MILLISECONDS(10){ 
+      breatheAngle = 0;
+      if(currentSliderLedBackgroundBrightnessRatio < sliderLedBackgroundFadeOutSpeed){
+        currentSliderLedBackgroundBrightnessRatio = 0;
+      }
+      else {
+        currentSliderLedBackgroundBrightnessRatio -= sliderLedBackgroundFadeOutSpeed;
+      }
+    }
+  } else {
+    EVERY_N_MILLISECONDS(10){
+      breatheAngle++; 
+      if(breatheAngle>=360){
+        breatheAngle-=360;
+      }
+      if(currentSliderLedBackgroundBrightnessRatio > (sliderLedBackgroundBrightnessRatio-sliderLedBackgroundFadeInSpeed)){
+        currentSliderLedBackgroundBrightnessRatio = sliderLedBackgroundBrightnessRatio;
+      }
+      else {
+        currentSliderLedBackgroundBrightnessRatio += sliderLedBackgroundFadeInSpeed;
+      }
+    }
+  }
+  
+}
+
+void handleLeds() {
+  handleButtonLeds();
+  handleSliderLeds();
+  
+  EVERY_N_MILLISECONDS( 20 ) { 
+    autoHue++; 
+  }
+  // EVERY_N_SECONDS( 5 ) { nextButtonLedMode(); nextSliderLedMode(); }
+  FastLED.show();
+  FastLED.delay(1000/120);
+}
+
+void readColorSettings(){
+  buttonLedMode = ButtonLedMode(EEPROM.read(0));
+  sliderLedMode = SliderLedMode(EEPROM.read(1));
+  for(uint8_t i = 0; i<5; ++i){
+    customColors[i] = CRGB(EEPROM.read(2+i*3),EEPROM.read(3+i*3),EEPROM.read(4+i*3));
+  }
+}
+
+void nextButtonLedMode(){
+  uint8_t newButtonLedModeInt = (static_cast<uint8_t>(buttonLedMode)+1)%(static_cast<uint8_t>(ButtonLedMode::custom)+1);
+  buttonLedMode = ButtonLedMode(newButtonLedModeInt);
+  EEPROM.write(0,newButtonLedModeInt);
+}
+
+void previousButtonLedMode(){
+  uint8_t newButtonLedModeInt = (static_cast<uint8_t>(buttonLedMode)-1)%(static_cast<uint8_t>(ButtonLedMode::custom)+1);
+  buttonLedMode = ButtonLedMode(newButtonLedModeInt);
+  EEPROM.write(0,newButtonLedModeInt);
+}
+
+void nextSliderLedMode(){
+  uint8_t newSliderLedModeInt = (static_cast<uint8_t>(sliderLedMode)+1)%(static_cast<uint8_t>(SliderLedMode::custom)+1);
+  sliderLedMode = SliderLedMode(newSliderLedModeInt);
+  EEPROM.write(1,newSliderLedModeInt);
+}
+
+void previousSliderLedMode(){
+  uint8_t newSliderLedModeInt = (static_cast<uint8_t>(sliderLedMode)-1)%(static_cast<uint8_t>(SliderLedMode::custom)+1);
+  sliderLedMode = SliderLedMode(newSliderLedModeInt);
+  EEPROM.write(1,newSliderLedModeInt);
+}
+
+void changeCustomColors(CRGB newCustomColors[5]){
+  for(uint8_t i = 0; i<5; ++i){
+    customColors[i] = newCustomColors[i];
+    EEPROM.write(2+i*3,customColors[i].red);
+    EEPROM.write(3+i*3,customColors[i].green);
+    EEPROM.write(4+i*3,customColors[i].blue);
+  }
+}
+
+void writeReport(){
+  for (uint8_t i=0;i<NUMBER_OF_BUTTONS;++i) buttons[i].write(ReportData);
+  dpad.write(ReportData);
+  writeSliderToReport();
+}
+
+/*------------------------------------------------------------*/
+/* setup your pins here */
+
+void setupButtons(){
+  buttons[A].attach(4);
+  buttons[B].attach(5);
+  buttons[Y].attach(6);
+  buttons[X].attach(7);
+}
+
+void setupDpad(){
+
+}
+
+#define LED_PIN 18
+
+void setupLeds() {
+  FastLED.addLeds<WS2812B,LED_PIN,GRB>(leds, NUMBER_OF_SLIDER_SENSORS*LEDS_PER_SENSOR+4*LEDS_PER_BUTTON).setCorrection(TypicalLEDStrip);
+  FastLED.setBrightness(ledMaxBrightness);
+  // readColorSettings();
+}
+
+/*------------------------------------------------------------*/
+
+void loop() {
+  readAll();
+  handleLeds();
   writeReport();
 
   HID_Task();

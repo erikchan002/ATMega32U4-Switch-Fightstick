@@ -68,6 +68,8 @@ const USB_Descriptor_Device_t PROGMEM DeviceDescriptor = {
 
   .Endpoint0Size          = FIXED_CONTROL_ENDPOINT_SIZE,
 
+  // .VendorID               = 0x057E,
+  // .ProductID              = 0x2009,
   .VendorID               = 0x0F0D,
   .ProductID              = 0x0092,
   .ReleaseNumber          = VERSION_BCD(1,0,0),
@@ -149,7 +151,7 @@ const USB_Descriptor_String_t PROGMEM LanguageString = USB_STRING_DESCRIPTOR_ARR
 
 // Manufacturer and Product Descriptor Strings
 const USB_Descriptor_String_t PROGMEM ManufacturerString = USB_STRING_DESCRIPTOR(L"erikchan002");
-const USB_Descriptor_String_t PROGMEM ProductString      = USB_STRING_DESCRIPTOR(L"ProMicroController");
+const USB_Descriptor_String_t PROGMEM ProductString      = USB_STRING_DESCRIPTOR(L"Pro Micro Controller");
 
 // USB Device Callback - Get Descriptor
 uint16_t CALLBACK_USB_GetDescriptor(const uint16_t wValue,
