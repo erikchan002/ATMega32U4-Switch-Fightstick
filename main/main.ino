@@ -1,40 +1,14 @@
 #include "LUFAConfig.h"
 #include <LUFA.h>
 #include "Joystick.h"
-#define BOUNCE_WITH_PROMPT_DETECTION
-#include <Bounce2.h>
+#include <Keypad.h>
 #include <Wire.h>
 #include <FastLED.h>
 #include <EEPROM.h>
 
-#define DEBOUNCE_INTERVAL 1 //ms
+/* ------------------------ Button matrix code - begins ------------------------ */
 
-class Button {
-  private:
-    const static uint16_t debounceInterval = DEBOUNCE_INTERVAL;
-    uint16_t mask;
-    Bounce bounce;
-    bool attached;
-  public:
-    bool status;
-    Button(uint16_t mask=0):mask(mask),bounce(Bounce()),attached(false){
-      this->bounce.interval(Button::debounceInterval);
-    }
-    void attach(uint8_t pin){
-      this->attached = true;
-      this->bounce.attach(pin, INPUT_PULLUP);
-    }
-    void disable(){
-      this->attached = false;
-    }
-    void read(){
-      if (this->attached && this->bounce.update()) this->status = this->bounce.fell();
-    }
-    USB_JoystickReport_Input_t write(USB_JoystickReport_Input_t &report){
-      if(this->status) report.Button |= this->mask;
-      return report;
-    }
-};
+#define DEBOUNCE_INTERVAL 3 //ms
 
 #define DPAD_UP_MASK        0x00
 #define DPAD_UPRIGHT_MASK   0x01
@@ -45,47 +19,6 @@ class Button {
 #define DPAD_LEFT_MASK      0x06
 #define DPAD_UPLEFT_MASK    0x07
 #define DPAD_NONE_MASK    0x08
-#define UP 0
-#define DOWN 1
-#define LEFT 2
-#define RIGHT 3
-class Dpad {
-  private:
-    const static uint16_t debounceInterval = DEBOUNCE_INTERVAL;
-    Bounce bounce[4];
-    bool attached;
-  public:
-    bool status[4];
-    Dpad():bounce{Bounce(),Bounce(),Bounce(),Bounce()},attached(false){
-    }
-    void attach(uint8_t pinUp, uint8_t pinDown, uint8_t pinLeft, uint8_t pinRight){
-      this->attached = true;
-      this->bounce[UP].attach(pinUp);
-      this->bounce[DOWN].attach(pinDown);
-      this->bounce[LEFT].attach(pinLeft);
-      this->bounce[RIGHT].attach(pinRight);
-    }
-    void disable(){
-      this->attached = false;
-    }
-    void read(){
-      for (uint8_t i=0;i<4;++i){
-        if (this->attached && this->bounce[i].update()) this->status[i] = this->bounce[i].fell();
-      }
-    }
-    USB_JoystickReport_Input_t write(USB_JoystickReport_Input_t &report){
-      report.HAT = DPAD_NONE_MASK;
-      if(this->status[RIGHT]) report.HAT = DPAD_RIGHT_MASK;
-      if(this->status[DOWN]) report.HAT = DPAD_DOWN_MASK;
-      if(this->status[LEFT]) report.HAT = DPAD_LEFT_MASK;
-      if(this->status[UP]) report.HAT = DPAD_UP_MASK;
-      if(this->status[DOWN] && this->status[RIGHT]) report.HAT = DPAD_DOWNRIGHT_MASK;
-      if(this->status[DOWN] && this->status[LEFT]) report.HAT = DPAD_DOWNLEFT_MASK;
-      if(this->status[UP] && this->status[RIGHT]) report.HAT = DPAD_UPRIGHT_MASK;
-      if(this->status[UP] && this->status[LEFT]) report.HAT = DPAD_UPLEFT_MASK;
-      return report;
-    }
-};
 
 #define Y_MASK        0x0001
 #define B_MASK        0x0002
@@ -102,41 +35,102 @@ class Dpad {
 #define HOME_MASK     0x1000
 #define CAPTURE_MASK  0x2000
 
-#define NUMBER_OF_BUTTONS 14
-#define A 0
-#define B 1
-#define X 2
-#define Y 3
-#define L 4
-#define R 5
-#define ZL 6
-#define ZR 7
-#define L_STICK 8
-#define R_STICK 9
-#define PLUS 10
-#define MINUS 11
-#define HOME 12
-#define CAPTURE 13
-Button buttons[NUMBER_OF_BUTTONS]{
-  A_MASK,
-  B_MASK,
-  X_MASK,
-  Y_MASK,
-  L_MASK,
-  R_MASK,
-  ZL_MASK,
-  ZR_MASK,
-  L_STICK_MASK,
-  R_STICK_MASK,
-  PLUS_MASK,
-  MINUS_MASK,
-  HOME_MASK,
-  CAPTURE_MASK
+#define NUMBER_OF_BUTTONS 22
+#define NUMBER_OF_ROWS 5
+#define NUMBER_OF_COLUMNS 5
+
+#define NONE NUMBER_OF_BUTTONS
+#define UP 0
+#define DOWN 1
+#define LEFT 2
+#define RIGHT 3
+#define CIRCLE 4
+#define CROSS 5
+#define SQUARE 6
+#define TRIANGLE 7
+#define A 8
+#define B 9
+#define X 10
+#define Y 11
+#define L 12
+#define R 13
+#define ZL 14
+#define ZR 15
+#define L_STICK 16
+#define R_STICK 17
+#define PLUS 18
+#define MINUS 19
+#define HOME 20
+#define CAPTURE 21
+
+bool buttons[NUMBER_OF_BUTTONS] = {false};
+uint8_t keymap[NUMBER_OF_ROWS][NUMBER_OF_COLUMNS] = {
+  {UP, L_STICK, NONE, R_STICK, X},
+  {LEFT, L, NONE, R, A},
+  {DOWN, ZL, HOME, ZR, Y},
+  {RIGHT, MINUS, CAPTURE, PLUS, B},
+  {TRIANGLE, SQUARE, NONE, CROSS, CIRCLE}
 };
-Dpad dpad;
+
+uint8_t rowPins[NUMBER_OF_ROWS] = {4,5,6,7,8};
+uint8_t colPins[NUMBER_OF_COLUMNS] = {9,10,16,14,15};
+Keypad matrix = Keypad( makeKeymap(keymap), rowPins, colPins, NUMBER_OF_ROWS, NUMBER_OF_COLUMNS );
+
+void setupMatrix(){
+  matrix.setDebounceTime(DEBOUNCE_INTERVAL);
+}
+void readMatrix(){
+  if (matrix.getKeys()){
+    for (int i=0; i<LIST_MAX; i++){
+      if ( matrix.key[i].stateChanged && matrix.key[i].kchar != NONE ){
+        switch (matrix.key[i].kstate) {
+          case PRESSED:
+          case HOLD:
+            buttons[matrix.key[i].kchar] = true;
+            break;
+          case RELEASED:
+          case IDLE:
+          default:
+            buttons[matrix.key[i].kchar] = false;
+            break;
+        }
+      }
+    }
+  }
+}
+void writeMatrixToReport(){
+  ReportData.HAT = DPAD_NONE_MASK;
+  if(buttons[RIGHT]) ReportData.HAT = DPAD_RIGHT_MASK;
+  if(buttons[DOWN]) ReportData.HAT = DPAD_DOWN_MASK;
+  if(buttons[LEFT]) ReportData.HAT = DPAD_LEFT_MASK;
+  if(buttons[UP]) ReportData.HAT = DPAD_UP_MASK;
+  if(buttons[DOWN] && buttons[RIGHT]) ReportData.HAT = DPAD_DOWNRIGHT_MASK;
+  if(buttons[DOWN] && buttons[LEFT]) ReportData.HAT = DPAD_DOWNLEFT_MASK;
+  if(buttons[UP] && buttons[RIGHT]) ReportData.HAT = DPAD_UPRIGHT_MASK;
+  if(buttons[UP] && buttons[LEFT]) ReportData.HAT = DPAD_UPLEFT_MASK;
+
+  if(buttons[A] || buttons[CIRCLE]) ReportData.Button |= A_MASK;
+  if(buttons[B] || buttons[CROSS]) ReportData.Button |= B_MASK;
+  if(buttons[X] || buttons[TRIANGLE]) ReportData.Button |= X_MASK;
+  if(buttons[Y] || buttons[SQUARE]) ReportData.Button |= Y_MASK;
+  if(buttons[L]) ReportData.Button |= L_MASK;
+  if(buttons[R]) ReportData.Button |= R_MASK;
+  if(buttons[ZL]) ReportData.Button |= ZL_MASK;
+  if(buttons[ZR]) ReportData.Button |= ZR_MASK;
+  if(buttons[L_STICK]) ReportData.Button |= L_STICK_MASK;
+  if(buttons[R_STICK]) ReportData.Button |= R_STICK_MASK;
+  if(buttons[PLUS]) ReportData.Button |= PLUS_MASK;
+  if(buttons[MINUS]) ReportData.Button |= MINUS_MASK;
+  if(buttons[HOME]) ReportData.Button |= HOME_MASK;
+  if(buttons[CAPTURE]) ReportData.Button |= CAPTURE_MASK;
+}
+
+/* ------------------------- Button matrix code - ends ------------------------- */
+
+/* --------------------------- Slider code - begins ---------------------------- */
 
 #define SLIDER_I2C_ADDRESS 0x08
-#define NUMBER_OF_SLIDER_SENSORS 30
+#define NUMBER_OF_SLIDER_SENSORS 32
 #define BUFFER_SIZE (NUMBER_OF_SLIDER_SENSORS+7)/8
 bool sliderTouches[NUMBER_OF_SLIDER_SENSORS] = {false};
 void setupSlider(){
@@ -167,6 +161,11 @@ void writeSliderToReport(){
   ReportData.RY = sticks[3] ^ 0x80;
 }
 
+/* ---------------------------- Slider code - ends ----------------------------- */
+
+/* ---------------------------- LED code - begins ------------------------------ */
+
+#define LED_PIN 18
 #define LEDS_PER_SENSOR 1
 #define LEDS_PER_BUTTON 1
 CRGB leds[NUMBER_OF_SLIDER_SENSORS*LEDS_PER_SENSOR+4*LEDS_PER_BUTTON];
@@ -187,23 +186,11 @@ uint8_t rippleLeft[NUMBER_OF_SLIDER_SENSORS] = {NUMBER_OF_SLIDER_SENSORS};
 uint8_t rippleRight[NUMBER_OF_SLIDER_SENSORS] = {NUMBER_OF_SLIDER_SENSORS};
 int8_t rippleLeftChange[NUMBER_OF_SLIDER_SENSORS] = {0};
 int8_t rippleRightChange[NUMBER_OF_SLIDER_SENSORS] = {0};
-
-void setup() {
-  setupLeds();
-  setupButtons();
-  setupDpad();
-  setupSlider();
-
-  SetupHardware();
-  GlobalInterruptEnable();
+void setupLeds() {
+  FastLED.addLeds<WS2812B,LED_PIN,GRB>(leds, NUMBER_OF_SLIDER_SENSORS*LEDS_PER_SENSOR+4*LEDS_PER_BUTTON).setCorrection(TypicalLEDStrip);
+  FastLED.setBrightness(ledMaxBrightness);
+  // readColorSettings();
 }
-
-void readAll(){
-  for (uint8_t i=0;i<NUMBER_OF_BUTTONS;++i) buttons[i].read();
-  dpad.read();
-  readSlider();
-}
-
 void handleButtonLeds() {
   uint8_t i;
   switch(buttonLedMode){
@@ -256,28 +243,27 @@ void handleButtonLeds() {
   for(i = 0; i < 4*LEDS_PER_BUTTON; ++i){
     leds[i].maximizeBrightness(buttonLedBrightnessRatio);
   }
-  if(buttons[A].status){
+  if(buttons[CIRCLE]){
     for(i = 0;i<LEDS_PER_BUTTON;++i){
       leds[0*LEDS_PER_BUTTON+i] = CRGB::Black;
     }
   }
-  if(buttons[B].status){
+  if(buttons[CROSS]){
     for(i = 0;i<LEDS_PER_BUTTON;++i){
       leds[1*LEDS_PER_BUTTON+i] = CRGB::Black;
     }
   }
-  if(buttons[Y].status){
+  if(buttons[SQUARE]){
     for(i = 0;i<LEDS_PER_BUTTON;++i){
       leds[2*LEDS_PER_BUTTON+i] = CRGB::Black;
     }
   }
-  if(buttons[X].status){
+  if(buttons[TRIANGLE]){
     for(i = 0;i<LEDS_PER_BUTTON;++i){
       leds[3*LEDS_PER_BUTTON+i] = CRGB::Black;
     }
   }
 }
-
 void handleSliderLeds(){
   switch(sliderLedMode){
     case SliderLedMode::rainbow:
@@ -393,7 +379,41 @@ void handleSliderLeds(){
   }
   
 }
-
+void readColorSettings(){
+  buttonLedMode = ButtonLedMode(EEPROM.read(0));
+  sliderLedMode = SliderLedMode(EEPROM.read(1));
+  for(uint8_t i = 0; i<5; ++i){
+    customColors[i] = CRGB(EEPROM.read(2+i*3),EEPROM.read(3+i*3),EEPROM.read(4+i*3));
+  }
+}
+void nextButtonLedMode(){
+  uint8_t newButtonLedModeInt = (static_cast<uint8_t>(buttonLedMode)+1)%(static_cast<uint8_t>(ButtonLedMode::custom)+1);
+  buttonLedMode = ButtonLedMode(newButtonLedModeInt);
+  EEPROM.write(0,newButtonLedModeInt);
+}
+void previousButtonLedMode(){
+  uint8_t newButtonLedModeInt = (static_cast<uint8_t>(buttonLedMode)-1)%(static_cast<uint8_t>(ButtonLedMode::custom)+1);
+  buttonLedMode = ButtonLedMode(newButtonLedModeInt);
+  EEPROM.write(0,newButtonLedModeInt);
+}
+void nextSliderLedMode(){
+  uint8_t newSliderLedModeInt = (static_cast<uint8_t>(sliderLedMode)+1)%(static_cast<uint8_t>(SliderLedMode::custom)+1);
+  sliderLedMode = SliderLedMode(newSliderLedModeInt);
+  EEPROM.write(1,newSliderLedModeInt);
+}
+void previousSliderLedMode(){
+  uint8_t newSliderLedModeInt = (static_cast<uint8_t>(sliderLedMode)-1)%(static_cast<uint8_t>(SliderLedMode::custom)+1);
+  sliderLedMode = SliderLedMode(newSliderLedModeInt);
+  EEPROM.write(1,newSliderLedModeInt);
+}
+void changeCustomColors(CRGB newCustomColors[5]){
+  for(uint8_t i = 0; i<5; ++i){
+    customColors[i] = newCustomColors[i];
+    EEPROM.write(2+i*3,customColors[i].red);
+    EEPROM.write(3+i*3,customColors[i].green);
+    EEPROM.write(4+i*3,customColors[i].blue);
+  }
+}
 void handleLeds() {
   handleButtonLeds();
   handleSliderLeds();
@@ -406,81 +426,23 @@ void handleLeds() {
   FastLED.delay(1000/120);
 }
 
-void readColorSettings(){
-  buttonLedMode = ButtonLedMode(EEPROM.read(0));
-  sliderLedMode = SliderLedMode(EEPROM.read(1));
-  for(uint8_t i = 0; i<5; ++i){
-    customColors[i] = CRGB(EEPROM.read(2+i*3),EEPROM.read(3+i*3),EEPROM.read(4+i*3));
-  }
+/* ----------------------------- LED code - ends ------------------------------- */
+
+void setup() {
+  setupLeds();
+  setupMatrix();
+  setupSlider();
+
+  SetupHardware();
+  GlobalInterruptEnable();
 }
-
-void nextButtonLedMode(){
-  uint8_t newButtonLedModeInt = (static_cast<uint8_t>(buttonLedMode)+1)%(static_cast<uint8_t>(ButtonLedMode::custom)+1);
-  buttonLedMode = ButtonLedMode(newButtonLedModeInt);
-  EEPROM.write(0,newButtonLedModeInt);
-}
-
-void previousButtonLedMode(){
-  uint8_t newButtonLedModeInt = (static_cast<uint8_t>(buttonLedMode)-1)%(static_cast<uint8_t>(ButtonLedMode::custom)+1);
-  buttonLedMode = ButtonLedMode(newButtonLedModeInt);
-  EEPROM.write(0,newButtonLedModeInt);
-}
-
-void nextSliderLedMode(){
-  uint8_t newSliderLedModeInt = (static_cast<uint8_t>(sliderLedMode)+1)%(static_cast<uint8_t>(SliderLedMode::custom)+1);
-  sliderLedMode = SliderLedMode(newSliderLedModeInt);
-  EEPROM.write(1,newSliderLedModeInt);
-}
-
-void previousSliderLedMode(){
-  uint8_t newSliderLedModeInt = (static_cast<uint8_t>(sliderLedMode)-1)%(static_cast<uint8_t>(SliderLedMode::custom)+1);
-  sliderLedMode = SliderLedMode(newSliderLedModeInt);
-  EEPROM.write(1,newSliderLedModeInt);
-}
-
-void changeCustomColors(CRGB newCustomColors[5]){
-  for(uint8_t i = 0; i<5; ++i){
-    customColors[i] = newCustomColors[i];
-    EEPROM.write(2+i*3,customColors[i].red);
-    EEPROM.write(3+i*3,customColors[i].green);
-    EEPROM.write(4+i*3,customColors[i].blue);
-  }
-}
-
-void writeReport(){
-  for (uint8_t i=0;i<NUMBER_OF_BUTTONS;++i) buttons[i].write(ReportData);
-  dpad.write(ReportData);
-  writeSliderToReport();
-}
-
-/*------------------------------------------------------------*/
-/* setup your pins here */
-
-void setupButtons(){
-  buttons[A].attach(4);
-  buttons[B].attach(5);
-  buttons[Y].attach(6);
-  buttons[X].attach(7);
-}
-
-void setupDpad(){
-
-}
-
-#define LED_PIN 18
-
-void setupLeds() {
-  FastLED.addLeds<WS2812B,LED_PIN,GRB>(leds, NUMBER_OF_SLIDER_SENSORS*LEDS_PER_SENSOR+4*LEDS_PER_BUTTON).setCorrection(TypicalLEDStrip);
-  FastLED.setBrightness(ledMaxBrightness);
-  // readColorSettings();
-}
-
-/*------------------------------------------------------------*/
 
 void loop() {
-  readAll();
+  readMatrix();
+  readSlider();
   handleLeds();
-  writeReport();
+  writeMatrixToReport();
+  writeSliderToReport();
 
   HID_Task();
   USB_USBTask();
