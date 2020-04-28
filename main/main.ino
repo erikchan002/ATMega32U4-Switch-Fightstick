@@ -133,7 +133,19 @@ void writeMatrixToReport(){
 #define NUMBER_OF_SLIDER_SENSORS 32
 #define BUFFER_SIZE (NUMBER_OF_SLIDER_SENSORS+7)/8
 bool sliderTouches[NUMBER_OF_SLIDER_SENSORS] = {false};
+uint8_t sliderReportPositionsPerSensor[NUMBER_OF_SLIDER_SENSORS];
 void setupSlider(){
+  for(uint8_t i=0;i<NUMBER_OF_SLIDER_SENSORS;++i){
+    sliderReportPositionsPerSensor[i] = 32/NUMBER_OF_SLIDER_SENSORS;
+  }
+  uint8_t extraPositions = 32 % NUMBER_OF_SLIDER_SENSORS;
+  for(uint8_t i=0;i<16 && extraPositions>0;++i){
+    sliderReportPositionsPerSensor[i]++;
+    extraPositions--;
+    if(extraPositions==0)break;
+    sliderReportPositionsPerSensor[NUMBER_OF_SLIDER_SENSORS-i]++;
+    extraPositions--;
+  }
   Wire.setClock(400000L);
   Wire.begin();
 }
@@ -152,8 +164,14 @@ void readSlider() {
 }
 void writeSliderToReport(){
   uint8_t sticks[4] = {0};
-  for(uint8_t i=0; i<NUMBER_OF_SLIDER_SENSORS;++i){
-    if(sliderTouches[i]) sticks[i/8] |= (1 << (i%8));
+  uint8_t bitPosition = 0;
+  for(uint8_t i=0; i<NUMBER_OF_SLIDER_SENSORS; ++i){
+    for(uint8_t j=0; j<sliderReportPositionsPerSensor[i]; ++j){
+      if(sliderTouches[i]){
+        sticks[bitPosition/8] |= (1 << (bitPosition%8));
+      }
+      bitPosition++;
+    }
   }
   ReportData.LX = sticks[0] ^ 0x80;
   ReportData.LY = sticks[1] ^ 0x80;
