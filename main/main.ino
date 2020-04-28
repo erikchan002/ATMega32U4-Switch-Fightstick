@@ -172,7 +172,7 @@ CRGB leds[NUMBER_OF_SLIDER_SENSORS*LEDS_PER_SENSOR+4*LEDS_PER_BUTTON];
 enum class ButtonLedMode { arcade, nintendo, sony, rainbow, swirl, custom } buttonLedMode;
 enum class SliderLedMode { arcade, rainbow, swirl, custom } sliderLedMode;
 uint8_t autoHue = 0;
-uint16_t breatheAngle = 0;
+uint8_t breathe = 0;
 CRGB customColors[5];
 const uint8_t ledMaxBrightness = 32;
 const uint8_t buttonLedBrightnessRatio = 255;
@@ -281,6 +281,7 @@ void handleSliderLeds(){
       break;
   }
   bool isTouching = false;
+  uint8_t currentSliderLedBackgroundBreatheBrightnessRatio = currentSliderLedBackgroundBrightnessRatio/4*3+currentSliderLedBackgroundBrightnessRatio*quadwave8(breathe)/255/4;
   for(uint8_t i = 0; i < NUMBER_OF_SLIDER_SENSORS; ++i){    
     if(sliderTouches[i]) {
       switch(sliderLedMode){
@@ -348,14 +349,14 @@ void handleSliderLeds(){
       // } 
       // else {
         for(uint8_t j = 0; j < LEDS_PER_SENSOR; ++j){
-          leds[i*LEDS_PER_SENSOR+j+4*LEDS_PER_BUTTON].maximizeBrightness(currentSliderLedBackgroundBrightnessRatio/4*3+currentSliderLedBackgroundBrightnessRatio*sin(radians(breatheAngle))/4);
+          leds[i*LEDS_PER_SENSOR+j+4*LEDS_PER_BUTTON].maximizeBrightness(currentSliderLedBackgroundBreatheBrightnessRatio);
         }
       // }
     }
   }
   if(isTouching){
     EVERY_N_MILLISECONDS(10){ 
-      breatheAngle = 0;
+      breathe = 0;
       if(currentSliderLedBackgroundBrightnessRatio < sliderLedBackgroundFadeOutSpeed){
         currentSliderLedBackgroundBrightnessRatio = 0;
       }
@@ -365,9 +366,9 @@ void handleSliderLeds(){
     }
   } else {
     EVERY_N_MILLISECONDS(10){
-      breatheAngle++; 
-      if(breatheAngle>=360){
-        breatheAngle-=360;
+      breathe++; 
+      if(breathe>=255){
+        breathe=0;
       }
       if(currentSliderLedBackgroundBrightnessRatio > (sliderLedBackgroundBrightnessRatio-sliderLedBackgroundFadeInSpeed)){
         currentSliderLedBackgroundBrightnessRatio = sliderLedBackgroundBrightnessRatio;
