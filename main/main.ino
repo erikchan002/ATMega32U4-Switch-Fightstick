@@ -429,10 +429,45 @@ void handleLeds() {
 
 /* ----------------------------- LED code - ends ------------------------------- */
 
+/* --------------------------- Timer code - begins ----------------------------- */
+
+uint32_t last;
+uint16_t count = 0;
+uint8_t min = 10000000;
+uint8_t max = 0;
+uint32_t total = 0;
+char message[256];
+
+void setupTimer(){
+  Serial1.begin(115200);
+}
+
+void timer() {
+  ++count;
+  uint32_t now = micros();
+  uint8_t single = now - last;
+  last = now;
+  if(single<min)min = single;
+  if(single>max)max = single;
+  total+=single;
+  if(total>=300000000){
+    uint32_t meanTime = total/count;
+    sprintf(message,"Min cycle time %d microseconds\nMax cycle time %d microseconds\nMean cycle time %d microseconds\n\n",min,max,meanTime);
+    Serial1.print(message);
+    count = 0;
+    min = 1000;
+    max = 0;
+    total = 0;
+  }
+}
+
+/* ---------------------------- Timer code - ends ------------------------------ */
+
 void setup() {
   setupLeds();
   setupMatrix();
   setupSlider();
+  setupTimer();
 
   SetupHardware();
   GlobalInterruptEnable();
@@ -447,4 +482,6 @@ void loop() {
 
   HID_Task();
   USB_USBTask();
+
+  timer();
 }
