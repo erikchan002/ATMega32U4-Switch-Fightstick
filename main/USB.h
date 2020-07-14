@@ -37,42 +37,41 @@
 #define _JOYSTICK_H_
 
 /* Includes: */
-#include <avr/io.h>
-#include <avr/wdt.h>
-#include <avr/power.h>
 #include <avr/interrupt.h>
+#include <avr/io.h>
+#include <avr/power.h>
+#include <avr/wdt.h>
 #include <string.h>
 
 #include "Descriptors.h"
 
-#include <LUFA/LUFA/Drivers/USB/USB.h>
+#include <LUFA/LUFA/Drivers/Board/Buttons.h>
 #include <LUFA/LUFA/Drivers/Board/Joystick.h>
 #include <LUFA/LUFA/Drivers/Board/LEDs.h>
-#include <LUFA/LUFA/Drivers/Board/Buttons.h>
+#include <LUFA/LUFA/Drivers/USB/USB.h>
 #include <LUFA/LUFA/Platform/Platform.h>
-
 
 // Joystick HID report structure. We have an input and an output.
 typedef struct {
-	uint16_t Button; // 16 buttons; see JoystickButtons_t for bit mapping
-	uint8_t  HAT;    // HAT switch; one nibble w/ unused nibble
-	uint8_t  LX;     // Left  Stick X
-	uint8_t  LY;     // Left  Stick Y
-	uint8_t  RX;     // Right Stick X
-	uint8_t  RY;     // Right Stick Y
-	uint8_t  VendorSpec;
+  uint16_t Button;  // 16 buttons; see JoystickButtons_t for bit mapping
+  uint8_t HAT;      // HAT switch; one nibble w/ unused nibble
+  uint8_t LX;       // Left  Stick X
+  uint8_t LY;       // Left  Stick Y
+  uint8_t RX;       // Right Stick X
+  uint8_t RY;       // Right Stick Y
+  uint8_t VendorSpec;
 } USB_JoystickReport_Input_t;
 extern USB_JoystickReport_Input_t ReportData;
 
 // The output is structured as a mirror of the input.
 // This is based on initial observations of the Pokken Controller.
 typedef struct {
-	uint16_t Button; // 16 buttons; see JoystickButtons_t for bit mapping
-	uint8_t  HAT;    // HAT switch; one nibble w/ unused nibble
-	uint8_t  LX;     // Left  Stick X
-	uint8_t  LY;     // Left  Stick Y
-	uint8_t  RX;     // Right Stick X
-	uint8_t  RY;     // Right Stick Y
+  uint16_t Button;  // 16 buttons; see JoystickButtons_t for bit mapping
+  uint8_t HAT;      // HAT switch; one nibble w/ unused nibble
+  uint8_t LX;       // Left  Stick X
+  uint8_t LY;       // Left  Stick Y
+  uint8_t RX;       // Right Stick X
+  uint8_t RY;       // Right Stick Y
 } USB_JoystickReport_Output_t;
 
 /* Function Prototypes: */
@@ -89,6 +88,9 @@ void EVENT_USB_Device_Disconnect(void);
 void EVENT_USB_Device_ConfigurationChanged(void);
 void EVENT_USB_Device_ControlRequest(void);
 // Prepare the next report for the host.
+
+extern USB_ClassInfo_CDC_Device_t VirtualSerial_CDC_Interface;
+
 #ifdef __cplusplus
 }
 #endif
