@@ -9,7 +9,7 @@ void LUFASerial::accept() {
     if (incoming < 0) break;
     buffer[rear] = incoming;
     if (front == -1) front = rear;
-    // Serial1.print("Accept: ");
+    // Serial1.print(F("Accept: "));
     // Serial1.println(incoming, HEX);
     rear = static_cast<int16_t>(rear + 1) % READ_BUFFER_SIZE;
   }
@@ -24,6 +24,8 @@ uint16_t LUFASerial::bufferLength() {
 
 int LUFASerial::available() {
   accept();
+  // Serial1.print(F("Buffer length: "));
+  // Serial1.println(bufferLength());
   return bufferLength();
 }
 
@@ -40,7 +42,7 @@ int LUFASerial::read() {
       front = -1;
     }
   }
-  // Serial1.print("Read from buffer: ");
+  // Serial1.print(F("Read from buffer: "));
   // Serial1.println(next, HEX);
   return next;
 }
@@ -56,7 +58,7 @@ size_t LUFASerial::write(byte datum) {
 }
 
 size_t LUFASerial::write(byte buffer[], uint16_t length) {
-  // Serial1.print("CDC Write: ");
+  // Serial1.print(F("CDC Write: "));
   // Serial1.write(buffer, length);
   // Serial1.println();
 

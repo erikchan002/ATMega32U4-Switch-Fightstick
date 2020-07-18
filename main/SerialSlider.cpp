@@ -4,6 +4,8 @@
 #include "LUFASerial.h"
 #include "USB.h"
 
+// #include <MemoryFree.h>
+
 LUFASerial Serial = LUFASerial(&VirtualSerial_CDC_Interface);
 
 SerialSliderPacket::SerialSliderPacket()
@@ -87,10 +89,10 @@ void SerialSliderPacket::write() {
 
   position = encodeByte(encoded, position, checksum);
 
-  // Serial1.print("Write: ");
+  // Serial1.print(F("Write: "));
   // for (uint16_t i = 0; i < position; ++i) {
   //   Serial1.print(encoded[i], HEX);
-  //   Serial1.print(" ");
+  //   Serial1.print(F(" "));
   // }
   // Serial1.println();
 
@@ -102,7 +104,7 @@ void SerialSliderPacket::write() {
 static SerialSliderPacket* SerialSliderPacket::read() {
   byte cmd;
   uint8_t argc;
-  byte* args;
+  byte args[MAX_ARGC];
   uint8_t checksum;
   uint8_t sum = 0;
 
@@ -118,15 +120,14 @@ static SerialSliderPacket* SerialSliderPacket::read() {
     return new SerialSliderPacket("no cmd");
   }
   sum += cmd;
-  // Serial1.print("cmd: ");
+  // Serial1.print(F("cmd: "));
   // Serial1.println(cmd);
 
   if (!readAndDecodeByte(argc)) {
     return new SerialSliderPacket("no argc");
   }
   sum += argc;
-  args = new byte[argc];
-  // Serial1.print("argc: ");
+  // Serial1.print(F("argc: "));
   // Serial1.println(argc);
 
   for (uint8_t i = 0; i < argc; ++i) {
@@ -140,7 +141,7 @@ static SerialSliderPacket* SerialSliderPacket::read() {
     return new SerialSliderPacket("no checksum");
   }
   sum += checksum;
-  // Serial1.print("checksum: ");
+  // Serial1.print(F("checksum: "));
   // Serial1.println(checksum);
 
   if (sum != 0) {
@@ -165,6 +166,7 @@ byte serialSliderReport[NUMBER_OF_REPORT_SLIDER_SENSORS] = {0};
 unsigned long resetTimerStart;
 
 void setupSerialSlider() {
+  Serial1.begin(115200);
   // Serial.begin(115200);
   serialSliderReportEnabled = false;
   resetSerialSliderLeds();
@@ -247,8 +249,8 @@ void handleSerialSlider() {
         // SerialSliderPacket::WrongChecksum.write();
         break;
       case SerialSliderCommand::message:
-        // Serial1.write(incoming->args, incoming->argc);
-        // Serial1.println();
+        Serial1.write(incoming->args, incoming->argc);
+        Serial1.println();
         break;
       default:
         break;
@@ -256,14 +258,14 @@ void handleSerialSlider() {
     delete incoming;
     incoming = nullptr;
     resetTimerStart = millis();
-  } else if (millis() - resetTimerStart > 10000) {
+  } else if (millis() - resetTimerStart > 60000) {
     serialSliderReportEnabled = false;
     resetSerialSliderLeds();
     resetTimerStart = millis();
   }
   EVERY_N_MILLISECONDS(12) {
     if (serialSliderReportEnabled) {
-      // Serial1.print("Report enabled: ");
+      // Serial1.print(F("Report enabled: "));
       // Serial1.println(serialSliderReportEnabled);
       writeSliderToSerialReport();
       SerialSliderPacket(SerialSliderCommand::sliderReport,
