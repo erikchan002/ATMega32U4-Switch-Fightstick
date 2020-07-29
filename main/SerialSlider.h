@@ -5,11 +5,12 @@
 
 #define SYNC 0xff
 #define ESC 0xfd
-#define MAX_ARGC NUMBER_OF_REPORT_SLIDER_SENSORS * 3 + 1  // 0xff
+#define MAX_ARGC NUMBER_OF_REPORT_SLIDER_SENSORS * 3 + 1
 #define MAX_RAW_LENGTH (MAX_ARGC + 3) * 2 + 1
 #define SERIAL_SLIDER_SENSOR_OFF 0x00
 #define SERIAL_SLIDER_SENSOR_ON 0xfe
 #define MAX_SLIDER_BRIGHTNESS 0x3f
+#define RESET_TIMEOUT 10  // seconds
 
 enum class SerialSliderCommand {
   none = 0x00,

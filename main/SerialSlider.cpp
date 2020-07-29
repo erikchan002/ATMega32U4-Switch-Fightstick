@@ -258,7 +258,7 @@ void handleSerialSlider() {
     delete incoming;
     incoming = nullptr;
     resetTimerStart = millis();
-  } else if (millis() - resetTimerStart > 60000) {
+  } else if ((millis() - resetTimerStart) > (RESET_TIMEOUT * 1000)) {
     serialSliderReportEnabled = false;
     resetSerialSliderLeds();
     resetTimerStart = millis();
