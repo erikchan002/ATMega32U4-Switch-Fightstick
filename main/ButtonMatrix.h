@@ -5,8 +5,8 @@
 #define HOLD_TIME 1000            // ms
 #define HOLD_REPEAT_INTERVAL 200  // ms
 #define SATURATION_STEP 8
-#define HUE_STEP 8
-#define VAL_STEP 8
+#define HUE_STEP 4
+#define VALUE_STEP 8
 
 #define DPAD_UP_MASK 0x00
 #define DPAD_UPRIGHT_MASK 0x01
@@ -47,8 +47,6 @@
 #define COL_2_PIN 14
 #define COL_3_PIN 16
 #define COL_4_PIN 10
-#define LED_BUTTON_LED_PIN 18
-#define SLIDER_LED_BUTTON_LED_PIN 19
 
 #define BUTTON_NONE NUMBER_OF_BUTTONS
 #define BUTTON_UP 0

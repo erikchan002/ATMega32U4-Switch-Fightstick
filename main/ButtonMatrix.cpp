@@ -19,8 +19,6 @@ Keypad matrix = Keypad(makeKeymap(keymap), rowPins, colPins, NUMBER_OF_ROWS,
                        NUMBER_OF_COLUMNS);
 
 void setupMatrix() {
-  pinMode(LED_BUTTON_LED_PIN, OUTPUT);
-  pinMode(SLIDER_LED_BUTTON_LED_PIN, OUTPUT);
   matrix.setHoldTime(HOLD_TIME);
   matrix.setDebounceTime(DEBOUNCE_INTERVAL);
 }
@@ -86,191 +84,264 @@ void writeMatrixToReport() {
 }
 
 void handleColorChange(CHSV &color) {
-  switch (matrix.key[matrix.findInList(BUTTON_UP)].kstate) {
-    case PRESSED:
-      color.sat += SATURATION_STEP;
-      break;
-    case HOLD:
-      EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL) {
-        color.sat += SATURATION_STEP;
-      }
-      break;
-    case RELEASED:
-    case IDLE:
-    default:
-      break;
+  const int up = matrix.findInList(static_cast<char>(BUTTON_UP));
+  const int down = matrix.findInList(static_cast<char>(BUTTON_DOWN));
+  const int right = matrix.findInList(static_cast<char>(BUTTON_RIGHT));
+  const int left = matrix.findInList(static_cast<char>(BUTTON_LEFT));
+  const int zr = matrix.findInList(static_cast<char>(BUTTON_ZR));
+  const int zl = matrix.findInList(static_cast<char>(BUTTON_ZL));
+  const int r = matrix.findInList(static_cast<char>(BUTTON_R));
+  const int l = matrix.findInList(static_cast<char>(BUTTON_L));
+  const int rStick = matrix.findInList(static_cast<char>(BUTTON_R_STICK));
+  const int lStick = matrix.findInList(static_cast<char>(BUTTON_L_STICK));
+  if (up != -1) {
+    switch (matrix.key[up].kstate) {
+      case PRESSED:
+        if (matrix.key[up].stateChanged) {
+          color.sat = qadd8(color.sat, SATURATION_STEP);
+        }
+        break;
+      case HOLD:
+        EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL / SATURATION_STEP) {
+          color.sat = qadd8(color.sat, 1);
+        }
+        break;
+      case RELEASED:
+      case IDLE:
+      default:
+        break;
+    }
   }
-  switch (matrix.key[matrix.findInList(BUTTON_DOWN)].kstate) {
-    case PRESSED:
-      color.sat -= SATURATION_STEP;
-      break;
-    case HOLD:
-      EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL) {
-        color.sat -= SATURATION_STEP;
-      }
-      break;
-    case RELEASED:
-    case IDLE:
-    default:
-      break;
+  if (down != -1) {
+    switch (matrix.key[down].kstate) {
+      case PRESSED:
+        if (matrix.key[down].stateChanged) {
+          color.sat = qsub8(color.sat, SATURATION_STEP);
+        }
+        break;
+      case HOLD:
+        EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL / SATURATION_STEP) {
+          color.sat = qsub8(color.sat, 1);
+        }
+        break;
+      case RELEASED:
+      case IDLE:
+      default:
+        break;
+    }
   }
-  switch (matrix.key[matrix.findInList(BUTTON_RIGHT)].kstate) {
-    case PRESSED:
-      color.hue += HUE_STEP;
-      break;
-    case HOLD:
-      EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL) {
-        color.hue += HUE_STEP;
-      }
-      break;
-    case RELEASED:
-    case IDLE:
-    default:
-      break;
+  if (right != -1) {
+    switch (matrix.key[right].kstate) {
+      case PRESSED:
+        if (matrix.key[right].stateChanged) {
+          color.hue += HUE_STEP;
+        }
+        break;
+      case HOLD:
+        EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL / HUE_STEP) {
+          color.hue++;
+        }
+        break;
+      case RELEASED:
+      case IDLE:
+      default:
+        break;
+    }
   }
-  switch (matrix.key[matrix.findInList(BUTTON_LEFT)].kstate) {
-    case PRESSED:
-      color.hue -= HUE_STEP;
-      break;
-    case HOLD:
-      EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL) {
-        color.hue -= HUE_STEP;
-      }
-      break;
-    case RELEASED:
-    case IDLE:
-    default:
-      break;
+  if (left != -1) {
+    switch (matrix.key[left].kstate) {
+      case PRESSED:
+        if (matrix.key[left].stateChanged) {
+          color.hue -= HUE_STEP;
+        }
+        break;
+      case HOLD:
+        EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL / HUE_STEP) {
+          color.hue--;
+        }
+        break;
+      case RELEASED:
+      case IDLE:
+      default:
+        break;
+    }
   }
-  switch (matrix.key[matrix.findInList(BUTTON_ZR)].kstate) {
-    case PRESSED:
-      color.val += VAL_STEP * 3;
-      break;
-    case HOLD:
-      EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL) {
-        color.val += VAL_STEP * 3;
-      }
-      break;
-    case RELEASED:
-    case IDLE:
-    default:
-      break;
+  if (zr != -1) {
+    switch (matrix.key[zr].kstate) {
+      case PRESSED:
+        if (matrix.key[zr].stateChanged) {
+          color.val = qadd8(color.val, qmul8(VALUE_STEP, 3));
+        }
+        break;
+      case HOLD:
+        EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL / VALUE_STEP / 3) {
+          color.val = qadd8(color.val, 1);
+        }
+        break;
+      case RELEASED:
+      case IDLE:
+      default:
+        break;
+    }
   }
-  switch (matrix.key[matrix.findInList(BUTTON_ZL)].kstate) {
-    case PRESSED:
-      color.val -= VAL_STEP * 3;
-      break;
-    case HOLD:
-      EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL) {
-        color.val -= VAL_STEP * 3;
-      }
-      break;
-    case RELEASED:
-    case IDLE:
-    default:
-      break;
+  if (zl != -1) {
+    switch (matrix.key[zl].kstate) {
+      case PRESSED:
+        if (matrix.key[zl].stateChanged) {
+          color.val = qsub8(color.val, qmul8(VALUE_STEP, 3));
+        }
+        break;
+      case HOLD:
+        EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL / VALUE_STEP / 3) {
+          color.val = qsub8(color.val, 1);
+        }
+        break;
+      case RELEASED:
+      case IDLE:
+      default:
+        break;
+    }
   }
-  switch (matrix.key[matrix.findInList(BUTTON_R)].kstate) {
-    case PRESSED:
-      color.val += VAL_STEP * 2;
-      break;
-    case HOLD:
-      EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL) {
-        color.val += VAL_STEP * 2;
-      }
-      break;
-    case RELEASED:
-    case IDLE:
-    default:
-      break;
+  if (r != -1) {
+    switch (matrix.key[r].kstate) {
+      case PRESSED:
+        if (matrix.key[r].stateChanged) {
+          color.val = qadd8(color.val, qmul8(VALUE_STEP, 2));
+        }
+        break;
+      case HOLD:
+        EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL / VALUE_STEP / 2) {
+          color.val = qadd8(color.val, 1);
+        }
+        break;
+      case RELEASED:
+      case IDLE:
+      default:
+        break;
+    }
   }
-  switch (matrix.key[matrix.findInList(BUTTON_L)].kstate) {
-    case PRESSED:
-      color.val -= VAL_STEP * 2;
-      break;
-    case HOLD:
-      EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL) {
-        color.val -= VAL_STEP * 2;
-      }
-      break;
-    case RELEASED:
-    case IDLE:
-    default:
-      break;
+  if (l != -1) {
+    switch (matrix.key[l].kstate) {
+      case PRESSED:
+        if (matrix.key[l].stateChanged) {
+          color.val = qsub8(color.val, qmul8(VALUE_STEP, 2));
+        }
+        break;
+      case HOLD:
+        EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL / VALUE_STEP / 2) {
+          color.val = qsub8(color.val, 1);
+        }
+        break;
+      case RELEASED:
+      case IDLE:
+      default:
+        break;
+    }
   }
-  switch (matrix.key[matrix.findInList(BUTTON_R_STICK)].kstate) {
-    case PRESSED:
-      color.val += VAL_STEP;
-      break;
-    case HOLD:
-      EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL) {
-        color.val += VAL_STEP;
-      }
-      break;
-    case RELEASED:
-    case IDLE:
-    default:
-      break;
+  if (rStick != -1) {
+    switch (matrix.key[rStick].kstate) {
+      case PRESSED:
+        if (matrix.key[rStick].stateChanged) {
+          color.val = qadd8(color.val, VALUE_STEP);
+        }
+        break;
+      case HOLD:
+        EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL / VALUE_STEP) {
+          color.val = qadd8(color.val, 1);
+        }
+        break;
+      case RELEASED:
+      case IDLE:
+      default:
+        break;
+    }
   }
-  switch (matrix.key[matrix.findInList(BUTTON_L_STICK)].kstate) {
-    case PRESSED:
-      color.val -= VAL_STEP;
-      break;
-    case HOLD:
-      EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL) {
-        color.val -= VAL_STEP;
-      }
-      break;
-    case RELEASED:
-    case IDLE:
-    default:
-      break;
+  if (lStick != -1) {
+    switch (matrix.key[lStick].kstate) {
+      case PRESSED:
+        if (matrix.key[lStick].stateChanged) {
+          color.val = qsub8(color.val, VALUE_STEP);
+        }
+        break;
+      case HOLD:
+        EVERY_N_MILLISECONDS(HOLD_REPEAT_INTERVAL / VALUE_STEP) {
+          color.val = qsub8(color.val, 1);
+        }
+        break;
+      case RELEASED:
+      case IDLE:
+      default:
+        break;
+    }
+  }
+}
+
+void handleButtonLedModeChange() {
+  const int home = matrix.findInList(static_cast<char>(BUTTON_HOME));
+  const int capture = matrix.findInList(static_cast<char>(BUTTON_CAPTURE));
+  if (home != -1) {
+    if (matrix.key[home].kstate == PRESSED && matrix.key[home].stateChanged) {
+      nextButtonLedMode();
+    }
+  }
+  if (capture != -1) {
+    if (matrix.key[capture].kstate == PRESSED &&
+        matrix.key[capture].stateChanged) {
+      previousButtonLedMode();
+    }
+  }
+}
+
+void handleSliderLedModeChange() {
+  const int home = matrix.findInList(static_cast<char>(BUTTON_HOME));
+  const int capture = matrix.findInList(static_cast<char>(BUTTON_CAPTURE));
+  if (home != -1) {
+    if (matrix.key[home].kstate == PRESSED && matrix.key[home].stateChanged) {
+      nextSliderLedMode();
+    }
+  }
+  if (capture != -1) {
+    if (matrix.key[capture].kstate == PRESSED &&
+        matrix.key[capture].stateChanged) {
+      previousSliderLedMode();
+    }
   }
 }
 
 void handleLedSettingsChange() {
   if (buttons[BUTTON_LED]) {
-    digitalWrite(LED_BUTTON_LED_PIN, LOW);
+    CHSV newCustomButtonColors[4];
+    for (uint8_t i = 0; i < 4; ++i) {
+      newCustomButtonColors[0] =
+          CHSV(customButtonColors[i].hue, customButtonColors[i].sat,
+               buttonLedBrightnessRatios[i]);
+    }
     if (buttons[BUTTON_A]) {
-      handleColorChange(customButtonColors[0]);
+      handleColorChange(newCustomButtonColors[0]);
     }
     if (buttons[BUTTON_B]) {
-      handleColorChange(customButtonColors[1]);
+      handleColorChange(newCustomButtonColors[1]);
     }
     if (buttons[BUTTON_Y]) {
-      handleColorChange(customButtonColors[2]);
+      handleColorChange(newCustomButtonColors[2]);
     }
     if (buttons[BUTTON_X]) {
-      handleColorChange(customButtonColors[3]);
+      handleColorChange(newCustomButtonColors[3]);
     }
     if (!buttons[BUTTON_A] && !buttons[BUTTON_B] && !buttons[BUTTON_X] &&
         !buttons[BUTTON_Y]) {
       for (uint8_t i = 0; i < 4; ++i) {
-        handleColorChange(customButtonColors[i]);
+        handleColorChange(newCustomButtonColors[i]);
       }
     }
-    changeCustomButtonColors(customButtonColors);
-
-    if (matrix.key[matrix.findInList(BUTTON_HOME)].kstate == PRESSED) {
-      nextButtonLedMode();
-    }
-    if (matrix.key[matrix.findInList(BUTTON_CAPTURE)].kstate == PRESSED) {
-      previousButtonLedMode();
-    }
-  } else {
-    digitalWrite(LED_BUTTON_LED_PIN, HIGH);
+    changeCustomButtonColors(newCustomButtonColors);
+    handleButtonLedModeChange();
   }
   if (buttons[BUTTON_SLIDER_LED]) {
-    digitalWrite(SLIDER_LED_BUTTON_LED_PIN, LOW);
-    handleColorChange(customSliderColor);
-    changeCustomSliderColor(customSliderColor);
-    if (matrix.key[matrix.findInList(BUTTON_HOME)].kstate == PRESSED) {
-      nextSliderLedMode();
-    }
-    if (matrix.key[matrix.findInList(BUTTON_CAPTURE)].kstate == PRESSED) {
-      previousSliderLedMode();
-    }
-  } else {
-    digitalWrite(SLIDER_LED_BUTTON_LED_PIN, HIGH);
+    CHSV newCustomSliderColor(customSliderColor.hue, customSliderColor.sat,
+                              sliderLedBrightnessRatio);
+    handleColorChange(newCustomSliderColor);
+    changeCustomSliderColor(newCustomSliderColor);
+    handleSliderLedModeChange();
   }
 }

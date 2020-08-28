@@ -10,39 +10,32 @@ SliderLedMode sliderLedMode;
 
 uint8_t autoHue = 0;
 uint8_t breathe = 0;
+uint8_t fade = 255;
 
 CHSV customButtonColors[4];
 CHSV customSliderColor;
 
 const uint8_t ledMaxBrightness = 255;
 
-const uint8_t buttonLedBrightnessRatio = 255;
+uint8_t buttonLedBrightnessRatios[4] = {255, 255, 255, 255};
+uint8_t sliderLedBrightnessRatio = 255;
 const uint8_t sliderLedTouchBrightnessRatio = 255;
-const uint8_t sliderLedRippleBrightnessRatio = 8;
 const uint8_t sliderLedBackgroundBrightnessRatio = 64;
-const uint8_t sliderLedBackgroundFadeInSpeed = 1;
-const uint8_t sliderLedBackgroundFadeOutSpeed = 4;
-uint8_t currentSliderLedBackgroundBrightnessRatio =
-    sliderLedBackgroundBrightnessRatio;
-
-// uint8_t rippleLeft[NUMBER_OF_SLIDER_SENSORS] = {NUMBER_OF_SLIDER_SENSORS};
-// uint8_t rippleRight[NUMBER_OF_SLIDER_SENSORS] = {NUMBER_OF_SLIDER_SENSORS};
-// int8_t rippleLeftChange[NUMBER_OF_SLIDER_SENSORS] = {0};
-// int8_t rippleRightChange[NUMBER_OF_SLIDER_SENSORS] = {0};
+const uint8_t sliderLedBackgroundFadeInSpeed = 4;
+const uint8_t sliderLedBackgroundFadeOutSpeed = 16;
 
 void setupLeds() {
   FastLED
       .addLeds<WS2812B, SLIDER_LEDS_PIN, GRB>(sliderLeds, NUMBER_OF_SLIDER_LEDS)
-      .setCorrection(TypicalSMD5050);
+      .setCorrection(SLIDER_LED_COLOR_CORRECTION);
   FastLED
       .addLeds<PL9823, BUTTON_LEDS_PIN, RGB>(buttonLeds, NUMBER_OF_BUTTON_LEDS)
-      .setCorrection(Typical8mmPixel);
+      .setCorrection(BUTTON_LED_COLOR_CORRECTION);
   FastLED.setBrightness(ledMaxBrightness);
   readColorSettings();
 }
 void handleSliderLeds() {
   if (sliderLedMode != SliderLedMode::arcadeSerial) {
-    FastLED.setBrightness(ledMaxBrightness);
     switch (sliderLedMode) {
       case SliderLedMode::rainbow:
         fill_rainbow(sliderLeds, NUMBER_OF_SLIDER_LEDS, autoHue, 0);
@@ -52,7 +45,7 @@ void handleSliderLeds() {
                      256 / (NUMBER_OF_SLIDER_LEDS + 1));
         break;
       case SliderLedMode::custom:
-        fill_solid(sliderLeds, NUMBER_OF_SLIDER_LEDS, customSliderColor);
+        fill_solid(sliderLeds, NUMBER_OF_SLIDER_LEDS, CRGB(customSliderColor));
         break;
       case SliderLedMode::arcadeSimulation:
       default:
@@ -60,10 +53,9 @@ void handleSliderLeds() {
         break;
     }
     bool isTouching = false;
-    uint8_t currentSliderLedBackgroundBreatheBrightnessRatio =
-        currentSliderLedBackgroundBrightnessRatio / 4 * 3 +
-        currentSliderLedBackgroundBrightnessRatio * quadwave8(breathe) / 255 /
-            4;
+    uint8_t sliderLedBackgroundBreatheBrightnessRatio =
+        sliderLedBackgroundBrightnessRatio / 3 * 2 +
+        sliderLedBackgroundBrightnessRatio * quadwave8(breathe) / 255 / 3;
     for (uint8_t i = 0; i < NUMBER_OF_SLIDER_SENSORS; ++i) {
       if (sliderTouches[i]) {
         switch (sliderLedMode) {
@@ -78,91 +70,29 @@ void handleSliderLeds() {
             break;
         }
         for (uint8_t j = 0; j < LEDS_PER_SENSOR; ++j) {
-          sliderLeds[i * LEDS_PER_SENSOR + j].maximizeBrightness(
-              sliderLedTouchBrightnessRatio);
+          sliderLeds[i * LEDS_PER_SENSOR + j] %= sliderLedTouchBrightnessRatio;
         }
-        // EVERY_N_MILLISECONDS(50){
-        //   if(rippleRightChange[i]==0){
-        //     rippleRight[i] = i;
-        //     rippleRightChange[i] = -1;
-        //   } else {
-        //     if(rippleRight[i]>=i){
-        //       rippleRight[i] = i-1;
-        //       rippleRightChange[i] = -1;
-        //     } else if(rippleRight[i]<=0){
-        //       rippleRight[i] = 1;
-        //       rippleRightChange[i] = +1;
-        //     } else {
-        //       rippleRight[i]+=rippleRightChange[i];
-        //     }
-        //   }
-        //   if(rippleLeftChange[i]==0){
-        //     rippleLeft[i] = i;
-        //     rippleLeftChange[i] = +1;
-        //   } else {
-        //     if(rippleLeft[i]<=i){
-        //       rippleLeft[i] = i+1;
-        //       rippleLeftChange[i] = +1;
-        //     } else if(rippleLeft[i]>=NUMBER_OF_SLIDER_SENSORS){
-        //       rippleLeft[i] = NUMBER_OF_SLIDER_SENSORS - 1;
-        //       rippleLeftChange[i] = -1;
-        //     } else {
-        //       rippleLeft[i]+=rippleLeftChange[i];
-        //     }
-        //   }
-        // }
         isTouching = true;
       } else {
-        // rippleLeftChange[i] = 0;
-        // rippleRightChange[i] = 0;
-        // bool inRippleRange = false;
-        // for(uint8_t j = 0; j < NUMBER_OF_SLIDER_SENSORS; ++j){
-        //   if(i>=rippleRight[j] && i<=rippleLeft[j] && sliderTouches[j]){
-        //     inRippleRange = true;
-        //     break;
-        //   }
-        // }
-        // if(inRippleRange){
-        //   for(uint8_t j = 0; j < LEDS_PER_SENSOR; ++j){
-        //     sliderLeds[i*LEDS_PER_SENSOR+j] =
-        //     CRGB::MediumTurquoise;
-        //     sliderLeds[i*LEDS_PER_SENSOR+j].maximizeBrightness(sliderLedRippleBrightnessRatio);
-        //   }
-        // }
-        // else {
         for (uint8_t j = 0; j < LEDS_PER_SENSOR; ++j) {
-          sliderLeds[i * LEDS_PER_SENSOR + j].maximizeBrightness(
-              currentSliderLedBackgroundBreatheBrightnessRatio);
+          sliderLeds[i * LEDS_PER_SENSOR + j] %=
+              sliderLedBackgroundBreatheBrightnessRatio;
+          sliderLeds[i * LEDS_PER_SENSOR + j] %= fade;
         }
-        // }
+      }
+      for (uint8_t j = 0; j < LEDS_PER_SENSOR; ++j) {
+        sliderLeds[i * LEDS_PER_SENSOR + j] %= sliderLedBrightnessRatio;
       }
     }
     if (isTouching) {
       EVERY_N_MILLISECONDS(10) {
         breathe = 0;
-        if (currentSliderLedBackgroundBrightnessRatio <
-            sliderLedBackgroundFadeOutSpeed) {
-          currentSliderLedBackgroundBrightnessRatio = 0;
-        } else {
-          currentSliderLedBackgroundBrightnessRatio -=
-              sliderLedBackgroundFadeOutSpeed;
-        }
+        fade = qsub8(fade, sliderLedBackgroundFadeOutSpeed);
       }
     } else {
       EVERY_N_MILLISECONDS(10) {
         breathe++;
-        if (breathe >= 255) {
-          breathe = 0;
-        }
-        if (currentSliderLedBackgroundBrightnessRatio >
-            (sliderLedBackgroundBrightnessRatio -
-             sliderLedBackgroundFadeInSpeed)) {
-          currentSliderLedBackgroundBrightnessRatio =
-              sliderLedBackgroundBrightnessRatio;
-        } else {
-          currentSliderLedBackgroundBrightnessRatio +=
-              sliderLedBackgroundFadeInSpeed;
-        }
+        fade = qadd8(fade, sliderLedBackgroundFadeInSpeed);
       }
     }
   }
@@ -204,7 +134,7 @@ void handleButtonLeds() {
       break;
   }
   for (i = 0; i < NUMBER_OF_BUTTON_LEDS; ++i) {
-    buttonLeds[i].maximizeBrightness(buttonLedBrightnessRatio);
+    buttonLeds[i] %= buttonLedBrightnessRatios[i];
   }
   if (buttons[BUTTON_CIRCLE]) {
     fill_solid(buttonLeds + 0 * LEDS_PER_BUTTON, LEDS_PER_BUTTON, CRGB::Black);
@@ -224,11 +154,12 @@ void readColorSettings() {
   buttonLedMode = ButtonLedMode(EEPROM.read(0));
   sliderLedMode = SliderLedMode(EEPROM.read(1));
   for (uint8_t i = 0; i < 4; ++i) {
-    customButtonColors[i] = CHSV(EEPROM.read(2 + i * 3), EEPROM.read(3 + i * 3),
-                                 EEPROM.read(4 + i * 3));
+    customButtonColors[i] =
+        CHSV(EEPROM.read(2 + i * 3), EEPROM.read(3 + i * 3), 255);
+    buttonLedBrightnessRatios[i] = EEPROM.read(4 + i * 3);
   }
-  customSliderColor = CHSV(EEPROM.read(2 + 4 * 3), EEPROM.read(3 + 4 * 3),
-                           EEPROM.read(4 + 4 * 3));
+  customSliderColor = CHSV(EEPROM.read(2 + 4 * 3), EEPROM.read(3 + 4 * 3), 255);
+  sliderLedBrightnessRatio = EEPROM.read(4 + 4 * 3);
 }
 
 void setButtonLedMode(ButtonLedMode mode) {
@@ -237,67 +168,60 @@ void setButtonLedMode(ButtonLedMode mode) {
 }
 
 void nextButtonLedMode() {
-  if (buttonLedMode == ButtonLedMode::custom) {
-    setButtonLedMode(ButtonLedMode::arcadeSimulation);
-  } else {
-    setButtonLedMode(
-        static_cast<ButtonLedMode>(static_cast<uint8_t>(buttonLedMode) + 1));
-  }
+  setButtonLedMode(static_cast<ButtonLedMode>(addmod8(
+      static_cast<uint8_t>(buttonLedMode), 1, NUMBER_OF_BUTTON_LED_MODES)));
 }
 
 void previousButtonLedMode() {
-  if (buttonLedMode == ButtonLedMode::arcadeSimulation) {
-    setButtonLedMode(ButtonLedMode::custom);
-  } else {
-    setButtonLedMode(
-        static_cast<ButtonLedMode>(static_cast<uint8_t>(buttonLedMode) - 1));
-  }
+  setButtonLedMode(static_cast<ButtonLedMode>(
+      addmod8(static_cast<uint8_t>(buttonLedMode),
+              NUMBER_OF_BUTTON_LED_MODES - 1, NUMBER_OF_BUTTON_LED_MODES)));
 }
 
 void setSliderLedMode(SliderLedMode mode) {
   sliderLedMode = mode;
   EEPROM.write(1, static_cast<uint8_t>(mode));
+  if (sliderLedMode == SliderLedMode::arcadeSerial) {
+    fill_solid(sliderLeds, NUMBER_OF_SLIDER_LEDS, CRGB::Black);
+  }
 }
 
 void nextSliderLedMode() {
-  if (sliderLedMode == SliderLedMode::custom) {
-    setSliderLedMode(SliderLedMode::arcadeSerial);
-  } else {
-    setSliderLedMode(
-        static_cast<SliderLedMode>(static_cast<uint8_t>(sliderLedMode) + 1));
-  }
+  setSliderLedMode(static_cast<SliderLedMode>(addmod8(
+      static_cast<uint8_t>(sliderLedMode), 1, NUMBER_OF_SLIDER_LED_MODES)));
 }
 
 void previousSliderLedMode() {
-  if (sliderLedMode == SliderLedMode::arcadeSerial) {
-    setSliderLedMode(SliderLedMode::custom);
-  } else {
-    setSliderLedMode(
-        static_cast<SliderLedMode>(static_cast<uint8_t>(sliderLedMode) - 1));
-  }
+  setSliderLedMode(static_cast<SliderLedMode>(
+      addmod8(static_cast<uint8_t>(sliderLedMode),
+              NUMBER_OF_SLIDER_LED_MODES - 1, NUMBER_OF_SLIDER_LED_MODES)));
 }
 
 void changeCustomButtonColors(CHSV newCustomButtonColors[4]) {
   for (uint8_t i = 0; i < 4; ++i) {
-    customButtonColors[i] = newCustomButtonColors[i];
-    EEPROM.write(2 + i * 3, customButtonColors[i].hue);
-    EEPROM.write(3 + i * 3, customButtonColors[i].sat);
-    EEPROM.write(4 + i * 3, customButtonColors[i].val);
+    customButtonColors[i] =
+        CHSV(newCustomButtonColors[i].hue, newCustomButtonColors[i].sat, 255);
+    buttonLedBrightnessRatios[i] = newCustomButtonColors[i].val;
+    EEPROM.write(2 + i * 3, newCustomButtonColors[i].hue);
+    EEPROM.write(3 + i * 3, newCustomButtonColors[i].sat);
+    EEPROM.write(4 + i * 3, newCustomButtonColors[i].val);
   }
 }
 
 void changeCustomSliderColor(CHSV newCustomSliderColor) {
-  customSliderColor = newCustomSliderColor;
-  EEPROM.write(2 + 4 * 3, customSliderColor.hue);
-  EEPROM.write(3 + 4 * 3, customSliderColor.sat);
-  EEPROM.write(4 + 4 * 3, customSliderColor.val);
+  customSliderColor =
+      CHSV(newCustomSliderColor.hue, newCustomSliderColor.sat, 255);
+  sliderLedBrightnessRatio = newCustomSliderColor.val;
+  EEPROM.write(2 + 4 * 3, newCustomSliderColor.hue);
+  EEPROM.write(3 + 4 * 3, newCustomSliderColor.sat);
+  EEPROM.write(4 + 4 * 3, newCustomSliderColor.val);
 }
 
 void handleLeds() {
-  EVERY_N_MILLISECONDS(20) {
+  EVERY_N_MILLISECONDS(RAINBOW_INTERVAL * 1000 / 256) {
     autoHue++;
   }
-  EVERY_N_MILLISECONDS(1000 / 120) {
+  EVERY_N_MILLISECONDS(1000 / FRAME_RATE) {
     handleButtonLeds();
     handleSliderLeds();
     FastLED.show();

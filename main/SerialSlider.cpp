@@ -4,8 +4,6 @@
 #include "LUFASerial.h"
 #include "USB.h"
 
-// #include <MemoryFree.h>
-
 LUFASerial Serial = LUFASerial(&VirtualSerial_CDC_Interface);
 
 SerialSliderPacket::SerialSliderPacket()
@@ -166,7 +164,7 @@ byte serialSliderReport[NUMBER_OF_REPORT_SLIDER_SENSORS] = {0};
 unsigned long resetTimerStart;
 
 void setupSerialSlider() {
-  Serial1.begin(115200);
+  // Serial1.begin(115200);
   // Serial.begin(115200);
   serialSliderReportEnabled = false;
   resetSerialSliderLeds();
@@ -186,7 +184,7 @@ void handleSerialSliderLeds(SerialSliderPacket* packet) {
     if (packet->argc > 0) {
       if (packet->args[0] < MAX_SLIDER_BRIGHTNESS) {
         for (uint8_t i = 0; i < NUMBER_OF_SLIDER_LEDS; ++i) {
-          sliderLeds[i].nscale8(packet->args[0] * 4);
+          sliderLeds[i] %= packet->args[0] * 4;
         }
       }
     }
@@ -249,8 +247,8 @@ void handleSerialSlider() {
         // SerialSliderPacket::WrongChecksum.write();
         break;
       case SerialSliderCommand::message:
-        Serial1.write(incoming->args, incoming->argc);
-        Serial1.println();
+        // Serial1.write(incoming->args, incoming->argc);
+        // Serial1.println();
         break;
       default:
         break;
@@ -263,7 +261,7 @@ void handleSerialSlider() {
     resetSerialSliderLeds();
     resetTimerStart = millis();
   }
-  EVERY_N_MILLISECONDS(12) {
+  EVERY_N_MILLISECONDS(REPORT_INTERVAL) {
     if (serialSliderReportEnabled) {
       // Serial1.print(F("Report enabled: "));
       // Serial1.println(serialSliderReportEnabled);

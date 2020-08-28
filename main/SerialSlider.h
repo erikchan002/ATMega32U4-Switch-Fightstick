@@ -10,7 +10,8 @@
 #define SERIAL_SLIDER_SENSOR_OFF 0x00
 #define SERIAL_SLIDER_SENSOR_ON 0xfe
 #define MAX_SLIDER_BRIGHTNESS 0x3f
-#define RESET_TIMEOUT 10  // seconds
+#define RESET_TIMEOUT 10    // seconds
+#define REPORT_INTERVAL 12  // ms
 
 enum class SerialSliderCommand {
   none = 0x00,
